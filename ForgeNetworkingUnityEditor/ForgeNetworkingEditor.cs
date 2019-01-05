@@ -604,9 +604,9 @@ namespace BeardedManStudios.Forge.Networking.UnityEditor
 				if (ActiveButton.IsSetupCorrectly())
 				{
 					_editorButtons.Add(ActiveButton);
-					Compile();
-					ChangeMenu(ForgeEditorActiveMenu.Main);
-				}
+                    Compile();
+                    ChangeMenu(ForgeEditorActiveMenu.Main);
+                }
 				else
 					Debug.LogError("Duplicate variable/rpc names found, please correct before compiling");
 			}
@@ -677,9 +677,9 @@ namespace BeardedManStudios.Forge.Networking.UnityEditor
 			{
 				if (ActiveButton.IsSetupCorrectly())
 				{
-					Compile();
-					ChangeMenu(ForgeEditorActiveMenu.Main);
-				}
+                    Compile();
+                    ChangeMenu(ForgeEditorActiveMenu.Main);
+                }
 				else
 					Debug.LogError("Duplicate variable/rpc names found, please correct before compiling");
 			}
@@ -734,9 +734,9 @@ namespace BeardedManStudios.Forge.Networking.UnityEditor
 
 			string interpolateType = string.Empty;
 			int i = 0, j = 0;
-			for (i = 0, j = 0; i < btn.ClassVariables.Count; ++i)
+ 			for (i = 0, j = 0; i < btn.ClassVariables.Count; ++i)
 			{
-				Type t = ForgeClassFieldValue.GetTypeFromAcceptable(btn.ClassVariables[i].FieldType);
+                Type t = ForgeClassFieldValue.GetTypeFromAcceptable(btn.ClassVariables[i].FieldType);
 				interpolateType = ForgeClassFieldValue.GetInterpolateFromAcceptable(_referenceVariables[t.Name], btn.ClassVariables[i].FieldType);
 
 				if (i != 0 && i % 8 == 0)
@@ -963,10 +963,42 @@ namespace BeardedManStudios.Forge.Networking.UnityEditor
 			}
 		}
 
-		/// <summary>
-		/// Compiles our generated code for the user
-		/// </summary>
-		public void Compile()
+        /// <summary>
+        /// Validates Fields to ensure no conflicts on compilation
+        /// </summary>
+        public ValidationResult Validate(ForgeEditorButton btn)
+        {
+            ValidationResult result = new ValidationResult();
+            Dictionary<string, ForgeEditorField> classVariables = btn.ClassVariables.ToDictionary(x => x.FieldName, y => y);
+            foreach (var field in btn.ClassVariables)
+            {
+                string fieldName = field.FieldName;
+                string duplicate = string.Empty;
+
+                if (fieldName.EndsWith("Changed"))
+                {
+                    duplicate = fieldName.Substring(0, fieldName.LastIndexOf("Changed"));
+                    if (classVariables.ContainsKey(duplicate))
+                    {
+                        result.ReportValidationError(String.Format("Field \"{0}\" conflicts with Changed event of {1}", fieldName, duplicate));
+                    }
+                }
+                if (fieldName.EndsWith("Interpolation"))
+                {
+                    duplicate = fieldName.Substring(0, fieldName.LastIndexOf("Interpolation"));
+                    if (classVariables.ContainsKey(duplicate))
+                    {
+                        result.ReportValidationError(String.Format("Field \"{0}\" conflicts with Interpolation field of {1}", fieldName, duplicate));
+                    }
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Compiles our generated code for the user
+        /// </summary>
+        public void Compile()
 		{
 			if (ActiveButton == null)
 			{
@@ -982,10 +1014,21 @@ namespace BeardedManStudios.Forge.Networking.UnityEditor
 
 			EditorApplication.LockReloadAssemblies();
 
-			int identity = 1;
+            int identity = 1;
 			for (int i = 0; i < _editorButtons.Count; ++i)
 			{
-				if (_editorButtons[i].IsCreated)
+                ForgeEditorButton btn = _editorButtons[i];
+                ValidationResult validation = Validate(_editorButtons[i]);
+
+                if (validation.errorMessages.Count > 0)
+                {
+                    foreach (string message in validation.errorMessages)
+                        Debug.Log(message);
+                    Debug.LogException(new ArgumentException(String.Format("{0} failed to compile. Please check compilation output and try again", _editorButtons[i].ButtonName)));
+                    throw new Exception("Compilation Failed.");
+                }
+
+                if (_editorButtons[i].IsCreated)
 				{
 					//Brand new class being added!
 					string networkObjectData = SourceCodeNetworkObject(null, _editorButtons[i], identity);
@@ -1005,7 +1048,7 @@ namespace BeardedManStudios.Forge.Networking.UnityEditor
 
 						string strippedName = _editorButtons[i].StrippedSearchName;
 						_editorButtons[i].ButtonName = strippedName + "NetworkObject";
-					}
+                    }
 				}
 				else
 				{
